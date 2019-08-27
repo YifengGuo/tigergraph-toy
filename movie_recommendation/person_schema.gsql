@@ -1,0 +1,1 @@
+CREATE VERTEX person (PRIMARY_ID userId INT, userId INT)

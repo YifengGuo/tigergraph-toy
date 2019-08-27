@@ -1,0 +1,56 @@
+USE GRAPH movie_rating
+# p: person who will be recommended with movies
+# k1: limit of similar people with p
+# k2: limit of recommended movies
+# step1: find all movies once rated by p
+# step2: based on found movies, find out people who also rated them, and calculate cosine similarity
+#        between p and found people, then select k1-most similar ones
+# step3: based on found k1 similar people, find out movies they rated which have not rated by p,
+#        calculate average rating and recommend top k2 movies to p
+CREATE QUERY RecommendMovie (VERTEX<person> p, INT k1, INT k2) FOR GRAPH movie_rating{
+	OrAccum @rated; # current person rated this movie before and do not need to be recommended
+    SumAccum<DOUBLE> @ratingByP; # record each movie's rate by current person
+    SumAccum<DOUBLE> @lengthA, @lengthB, @dotProductAB;
+	SumAccum<DOUBLE> @cosineSimilarity;
+	AvgAccum @recommendScore; # average score on a movie given by k1 similar people
+
+	PSet = {p}; # person set
+
+	# set of movies which was rated by current person
+	PRatedMovies = SELECT m 
+				   FROM PSet -(rate:r)-> movie:m 
+				   ACCUM m.@rated = true, m.@ratingByP = r.rating;
+	
+	# find all people except current person who rated same movie starting from vertex movie
+    # to calculate cosine similarity of p and q from PeopleRatedSameMovie
+    # vector space is commonly rated movies by p and q
+    # vector A represents p's ratings on those common movies
+    # vevtor B represents tgt's ratings on those common movies
+    # cos(theta) = A.dot(B) / |A||B|
+	PeopleRatedSameMovie = SELECT tgt 
+                           FROM PRatedMovies:m -(reverse_rate:r)-> person:tgt 
+                           WHERE tgt != p
+						   ACCUM tgt.@lengthA += m.@ratingByP * m.@ratingByP,
+                           	     tgt.@lengthB += r.rating * r.rating,
+								 tgt.@dotProductAB += m.@ratingByP * r.rating
+					       POST-ACCUM
+								 tgt.@cosineSimilarity = tgt.@dotProductAB / sqrt(tgt.@lengthA) / sqrt(tgt.@lengthB)
+						   ORDER BY tgt.@cosineSimilarity DESC LIMIT k1; # order by cosine similarity limit k1 to find out
+																		 # k1-most similar people with p
+
+	# starting from PeopleRatedSameMovie to find movies which rated by tgt but yet not rated by p
+	RecommendedMovies = SELECT m 
+					    FROM PeopleRatedSameMovie -(rate:r)-> movie:m
+						WHERE m.@rated == false
+					    ACCUM m.@recommendScore += r.rating
+						ORDER BY m.@recommendScore DESC 
+						LIMIT k2;
+
+	PRINT RecommendedMovies.title,
+		  RecommendedMovies.@recommendScore;
+
+}
+
+# install query
+INSTALL QUERY RecommendMovie
+

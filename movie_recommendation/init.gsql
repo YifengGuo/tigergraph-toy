@@ -1,0 +1,30 @@
+# person schema
+CREATE VERTEX person(PRIMARY_ID userId INT, userId INT)
+
+# movie schema
+CREATE VERTEX movie(PRIMARY_ID movieId STRING, movieId STRING, title STRING, genres STRING)
+
+# bi-directed edge schema
+CREATE DIRECTED EDGE rate(FROM person, TO movie, rating DOUBLE, rating_at DATETIME) WITH REVERSE_EDGE="reverse_rate"
+
+# graph initialize
+CREATE GRAPH movie_rating(*)
+
+# data load
+USE GRAPH movie_rating
+BEGIN
+CREATE LOADING JOB load_movie_rating FOR GRAPH movie_rating {
+	DEFINE FILENAME file1="/home/tigergraph/movie_recommend/data/user.csv";
+    DEFINE FILENAME file2="/home/tigergraph/movie_recommend/data/movies.csv";
+    DEFINE FILENAME file3="/home/tigergraph/movie_recommend/data/ratings.csv";
+
+   	LOAD file1 TO VERTEX person VALUES($0, $0) USING header="true", separator=",";
+	LOAD file2 TO VERTEX movie VALUES($"movieId", $"movieId", $"title", $"genres") USING header="true", separator=",";
+    LOAD file3 TO EDGE rate VALUES ($0, $1, $2, $3) USING header="true", separator=",";
+}
+END
+
+# run loading job
+RUN LOADING JOB load_movie_rating
+
+

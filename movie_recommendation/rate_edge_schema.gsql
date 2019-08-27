@@ -1,0 +1,1 @@
+CREATE DIRECTED EDGE rate(FROM person, TO movie, rating DOUBLE, rating_at DATETIME)
